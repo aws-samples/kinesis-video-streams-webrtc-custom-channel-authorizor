@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  kvs-webrtc-channel-manager
+
+  A demo serverless stack to manage KVS WebRTC channel re-use, security and credential management
+Globals:
+  Function:
+    Timeout: 30
+    Environment:
+      Variables:
+        TOKEN_TABLE: token-table
+        KVS_CHANNEL_NAME_PREFIX: kvs-signalling-channel-
+        MASTER_POLICY_KEY: /policies/master-policy.json
+        VIEWER_POLICY_KEY: /policies/viewer-policy.json
+        TRUST_POLICY_KEY: /policies/lambda-trust-policy.json
+        REVOKE_POLICY_KEY: /policies/revoke-access-policy.json
+Resources:
+  KVSWebRTCChannelManagerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      RoleName: KVSWebRTCChannelManagerLambdaRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LambdaAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:*
+                  - kinesisvideo:*
+                  - sts:AssumeRole
+                  - dynamodb:*
+                Resource: "*"
+  GetChannelFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: kvs-webrtc-channel-manager/
+      Handler: getChannel.lambda_handler
+      Runtime: python3.7
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /getChannel
+            Method: get
+      Role: !GetAtt KVSWebRTCChannelManagerLambdaRole.Arn
+  GetMasterCredentialsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: kvs-webrtc-channel-manager/
+      Handler: getMasterCredentials.lambda_handler
+      Runtime: python3.7
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /getMasterCredentials/{channelName}
+            Method: get
+      Role: !GetAtt KVSWebRTCChannelManagerLambdaRole.Arn
+  GetViewerCredentialsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: kvs-webrtc-channel-manager/
+      Handler: getViewerCredentials.lambda_handler
+      Runtime: python3.7
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /getViewerCredentials/{channelName}
+            Method: get
+      Role: !GetAtt KVSWebRTCChannelManagerLambdaRole.Arn
+  EndSessionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: kvs-webrtc-channel-manager/
+      Handler: endSessions.lambda_handler
+      Runtime: python3.7
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /endSessions/{channelName}
+            Method: get
+      Role: !GetAtt KVSWebRTCChannelManagerLambdaRole.Arn
+
+  TokenDDBTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: token-table
+      PrimaryKey:
+        Name: channel_name
+        Type: String
+
+Outputs:
+  GetChannelApi:
+    Description: "API Gateway endpoint URL for Prod stage for Get Channel function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/getChannel/"
+  GetMasterCredentialsApi:
+    Description: "API Gateway endpoint URL for Prod stage for Get Channel function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/getMasterCredentials/{channel-name}"
+  GetViewerCredentialsApi:
+    Description: "API Gateway endpoint URL for Prod stage for Get Channel function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/getViewerCredentials/{channel-name}"
+  EndSessionsApi:
+    Description: "API Gateway endpoint URL for Prod stage for Get Channel function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/endSessions/{channel-name}"
